@@ -244,6 +244,28 @@ class Tetris(gym.Env):
         lines_cleared = temp_board.clear_full_rows()
         return lines_cleared, temp_board.get_state()
 
+    def clear_full_rows_(self, board_state: np.ndarray) -> tuple[int, np.ndarray]:
+        """
+        Clear full rows using numpy operations (backward compatibility).
+
+        Args:
+            board_state: NumPy array representing the board
+
+        Returns:
+            Tuple of (lines_cleared, new_board_state)
+        """
+        board_array = np.array(board_state)
+        mask = np.all(board_array != 0, axis=1)
+        cleared_board = board_array[~mask]
+        lines_cleared = np.sum(mask)
+
+        # Add empty rows at the top
+        if lines_cleared > 0:
+            empty_rows = np.zeros((lines_cleared, self.width), dtype=board_array.dtype)
+            cleared_board = np.concatenate([empty_rows, cleared_board])
+
+        return int(lines_cleared), cleared_board
+
     def get_holes(self, board_state: list) -> int:
         """Get number of holes (backward compatibility)."""
         temp_board = Board(self.height, self.width)
