@@ -1,0 +1,94 @@
+name: CI - Test Suite
+
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure Poetry
+        run: |
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project true
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          poetry install --with dev
+
+      - name: Run tests
+        run: |
+          poetry run pytest tests/ -v --tb=short
+
+      - name: Test Summary
+        if: always()
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "Python version: ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          poetry run pytest tests/ --tb=no -q >> $GITHUB_STEP_SUMMARY 2>&1 || true
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Build package
+        run: |
+          poetry build
+
+      - name: Check package
+        run: |
+          poetry run pip install twine
+          poetry run twine check dist/*
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist-packages
+          path: dist/
