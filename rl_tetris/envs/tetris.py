@@ -1,9 +1,14 @@
+"""Tetris Gymnasium environment using refactored components."""
+
 import numpy as np
 import gymnasium as gym
 from gymnasium.spaces import Box, Discrete
-
 from dataclasses import fields
+from typing import Optional
 
+from rl_tetris.core.board import Board
+from rl_tetris.core.piece import Piece
+from rl_tetris.core.game import Game
 from rl_tetris.game_state import GameStates
 from rl_tetris.tetromino_queue import TetrominoQueue
 from rl_tetris.renderer import Renderer
@@ -11,84 +16,60 @@ from rl_tetris.mapping.actions import GameActions
 
 
 class Tetris(gym.Env):
+    """
+    Tetris Gymnasium environment.
+
+    This environment provides a standard Gymnasium interface for playing Tetris.
+    It uses refactored components for better modularity and testability:
+    - Board: Manages board state and operations
+    - Piece: Handles piece shapes and rotations
+    - Game: Orchestrates game logic and scoring
+    """
+
     metadata = {
         "render_modes": ["human", "animate"],
         "render_fps": 1
     }
 
-    PIECES = [
-        # O
-        [[1, 1],
-         [1, 1]],
-
-        # I
-        [[2, 2, 2, 2]],
-
-        # S
-        [[0, 3, 3],
-         [3, 3, 0]],
-
-        # Z
-        [[4, 4, 0],
-         [0, 4, 4]],
-
-        # T
-        [[0, 5, 0],
-         [5, 5, 5]],
-
-        # L
-        [[0, 0, 6],
-         [6, 6, 6]],
-
-        # J
-        [[7, 0, 0],
-         [7, 7, 7]]
-    ]
-
     def __init__(
-            self,
-            render_mode=None,
-            height=20,
-            width=10,
-            block_size=30,
-            randomizer=None):
+        self,
+        render_mode: Optional[str] = None,
+        height: int = 20,
+        width: int = 10,
+        block_size: int = 30,
+        randomizer=None
+    ):
+        """
+        Initialize Tetris environment.
+
+        Args:
+            render_mode: Rendering mode ("human", "animate", or None)
+            height: Board height in cells
+            width: Board width in cells
+            block_size: Size of each block for rendering
+            randomizer: Randomizer instance for piece generation
+        """
         self.height = height
         self.width = width
+
+        # Initialize components
+        self.board = Board(height, width)
         self.queue = TetrominoQueue(randomizer=randomizer)
+        self.game = Game(self.board, self.queue, initial_position="center")
         self.renderer = Renderer(height, width, block_size)
 
-        """
-        게임 상태 관련 주요 변수
-        - board : 현재 보드 상태
-        - queue : 다음 블록을 뽑기 위한 TetrominoQueue 인스턴스
-        - score : 현재 점수
-        - cleared_lines : 지워진 줄 수
-        - gameover : 게임 종료 여부
-        - x, y : 현재 블록 위치
-        - piece : 현재 블록(2차원 배열)
-        - idx: 현재 종류 블록 인덱스
-        """
-
-        # Gymnasium
-        self.observation_space = gym.spaces.Dict(
-            {
-                "board": Box(
-                    low=0,
-                    high=len(self.PIECES),
-                    shape=(self.height, self.width),
-                    dtype=np.uint8,
-                ),
-                # "piece": Box(
-                #     low=0,
-                #     high=len(self.PIECES),
-                #     shape=(4, 4),
-                #     dtype=np.uint8,
-                # ),
-                "p_id": Discrete(len(self.PIECES)),
-                "x": Discrete(self.width),
-                "y": Discrete(self.height),
-            }
-        )
+        # Gymnasium spaces
+        self.observation_space = gym.spaces.Dict({
+            "board": Box(
+                low=0,
+                high=Piece.num_piece_types(),
+                shape=(self.height, self.width),
+                dtype=np.uint8,
+            ),
+            "p_id": Discrete(Piece.num_piece_types()),
+            "x": Discrete(self.width),
+            "y": Discrete(self.height),
+        })
 
         self.actions = GameActions
         self.action_space = Discrete(len(fields(GameActions)))
@@ -96,248 +77,259 @@ class Tetris(gym.Env):
 
         self.render_mode = render_mode
 
-    def get_observation(self):
-        return {
-            "board": np.array(self.board, dtype=np.uint8),
-            # "piece": padded_piece,
-            "p_id": self.idx,
-            "x": self.x,
-            "y": self.y,
-        }
-
-    def get_info(self):
-        return {
-            "score": self.score,
-            "cleared_lines": self.cleared_lines,
-        }
-
-    def reset(self, *, seed: int | None = None, options: dict | None = None) -> tuple[dict, dict]:
-        """게임 상태 초기화 후, 초기 상태 특징을 반환하는 메서드"""
-        self.board = [[0] * self.width for _ in range(self.height)]
-
+        # For backward compatibility with wrappers
+        self.PIECES = Piece.SHAPES
+        self.piece = None  # Current piece shape (for wrappers)
+        self.x = 0  # Current piece x (for wrappers)
+        self.y = 0  # Current piece y (for wrappers)
+        self.idx = 0  # Current piece type (for wrappers)
         self.score = 0
         self.cleared_lines = 0
-        self.queue.reset()
-
-        self.idx = self.queue.pop()
-        self.piece = [r[:] for r in self.PIECES[self.idx]]
-        self.x, self.y = self.width // 2 - len(self.piece[0]) // 2, 0
         self.gameover = False
+
+    def get_observation(self) -> dict:
+        """
+        Get the current observation.
+
+        Returns:
+            Dictionary containing board state and piece information
+        """
+        if not self.game.current_piece:
+            # Fallback if no current piece
+            return {
+                "board": np.array(self.board.get_state(), dtype=np.uint8),
+                "p_id": 0,
+                "x": 0,
+                "y": 0,
+            }
+
+        return {
+            "board": np.array(self.board.get_state(), dtype=np.uint8),
+            "p_id": self.game.current_piece.piece_type,
+            "x": self.game.current_piece.x,
+            "y": self.game.current_piece.y,
+        }
+
+    def get_info(self) -> dict:
+        """
+        Get additional information about the game state.
+
+        Returns:
+            Dictionary with score and cleared lines
+        """
+        return {
+            "score": self.game.score,
+            "cleared_lines": self.game.cleared_lines,
+        }
+
+    def reset(
+        self,
+        *,
+        seed: int | None = None,
+        options: dict | None = None
+    ) -> tuple[dict, dict]:
+        """
+        Reset the environment to initial state.
+
+        Args:
+            seed: Random seed (optional)
+            options: Additional options (optional)
+
+        Returns:
+            Tuple of (observation, info)
+        """
+        super().reset(seed=seed)
+
+        self.game.reset()
+        self._sync_state_for_wrappers()
 
         return self.get_observation(), self.get_info()
 
-    def step(self, action: GameActions) -> tuple[dict, int, bool, dict]:
+    def step(self, action: int) -> tuple[dict, float, bool, bool, dict]:
+        """
+        Execute one step in the environment.
+
+        Args:
+            action: Action to take (from GameActions)
+
+        Returns:
+            Tuple of (observation, reward, terminated, truncated, info)
+        """
         reward = 0
         lines_cleared = 0
 
-        # piece에 이동방향을 미리 적용하여 check_collision 메서드를 통해 충돌을 확인한 후 이동방향 적용
+        # Execute action on current piece
         if action == GameActions.move_left:
-            if not self.check_collision(self.piece, self.x - 1, self.y):
-                self.x -= 1
+            self.game.move_piece(-1, 0)
         elif action == GameActions.move_right:
-            if not self.check_collision(self.piece, self.x + 1, self.y):
-                self.x += 1
+            self.game.move_piece(1, 0)
         elif action == GameActions.move_down:
-            if not self.check_collision(self.piece, self.x, self.y + 1):
-                self.y += 1
+            self.game.move_piece(0, 1)
         elif action == GameActions.rotate:
-            rotated_piece = self.get_rotated_piece(self.piece)
-            if not self.check_collision(rotated_piece, self.x, self.y):
-                self.piece = rotated_piece
+            self.game.rotate_piece()
         elif action == GameActions.hard_drop:
-            while not self.check_collision(self.piece, self.x, self.y + 1):
-                if self.render_mode == "animate":
-                    self.render()
-                self.y += 1
+            self.game.hard_drop()
+            if self.render_mode == "animate":
+                self.render()
 
-        # 현재 piece가 보드 상단을 벗어나는 경우 = 게임오버
-        if self.truncate_overflow_piece(self.piece, self.x, self.y):
-            self.gameover = True
-
-            self.board = self.get_board_with_piece(self.piece, self.x, self.y)
-            lines_cleared, self.board = self.clear_full_rows(self.board)
-            self.cleared_lines += lines_cleared
-            reward = self.get_reward(lines_cleared) - 5
-            self.score += reward
-
-            return (
-                self.get_observation(),
-                reward,
-                self.gameover,
-                False,  # truncated
-                self.get_info()
-            )
-
-        # 게임오버가 아니지만 움직일 수 없는 경우, 다음 테트로미노를 뽑아서 현재 테트로미노로 설정
-        if self.check_collision(self.piece, self.x, self.y + 1):
-            self.board = self.get_board_with_piece(self.piece, self.x, self.y)
+        # Check if piece can no longer move down (needs to lock)
+        if not self.game.can_move(0, 1):
+            lines_cleared, is_game_over = self.game.lock_piece()
 
             if self.render_mode == "animate":
                 self.render()
 
-            lines_cleared, self.board = self.clear_full_rows(self.board)
+            if is_game_over:
+                reward = self.game.calculate_reward(lines_cleared, is_overflow=True)
+                self._sync_state_for_wrappers()
+                return (
+                    self.get_observation(),
+                    reward,
+                    True,  # terminated
+                    False,  # truncated
+                    self.get_info()
+                )
 
-            self.cleared_lines += lines_cleared
-            reward = self.get_reward(lines_cleared)
-            self.score += reward
+            reward = self.game.calculate_reward(lines_cleared, is_overflow=False)
 
-            self.spawn_next_piece()
+        self._sync_state_for_wrappers()
 
         return (
             self.get_observation(),
             reward,
-            self.gameover,
+            self.game.is_game_over(),
             False,  # truncated
             self.get_info()
         )
 
-##################################################
+    def _sync_state_for_wrappers(self) -> None:
+        """
+        Sync state to legacy attributes for backward compatibility with wrappers.
+        """
+        self.score = self.game.score
+        self.cleared_lines = self.game.cleared_lines
+        self.gameover = self.game.is_game_over()
 
-    def check_collision(self, piece, px, py):
-        """현재 보드 상태에서, piece가 pos에 추가될 때 충돌이 발생하는지 여부를 반환하는 메서드"""
+        if self.game.current_piece:
+            self.piece = self.game.current_piece.get_shape_copy()
+            self.x = self.game.current_piece.x
+            self.y = self.game.current_piece.y
+            self.idx = self.game.current_piece.piece_type
+        else:
+            self.piece = None
+            self.x = 0
+            self.y = 0
+            self.idx = 0
 
+    # ========================================
+    # Methods for backward compatibility
+    # ========================================
+
+    def check_collision(self, piece: list, px: int, py: int) -> bool:
+        """Check collision (backward compatibility)."""
+        return self.board.check_collision(piece, px, py)
+
+    def get_rotated_piece(self, piece: list) -> list:
+        """Rotate piece (backward compatibility)."""
+        return Piece.get_rotated_clockwise(piece)
+
+    def get_board_with_piece(self, piece: list, px: int, py: int) -> list:
+        """Get board with piece (backward compatibility)."""
+        return self.board.get_board_with_piece(piece, px, py)
+
+    def clear_full_rows(self, board_state: list) -> tuple[int, list]:
+        """Clear full rows (backward compatibility)."""
+        temp_board = Board(self.height, self.width)
+        temp_board.set_state(board_state)
+        lines_cleared = temp_board.clear_full_rows()
+        return lines_cleared, temp_board.get_state()
+
+    def clear_full_rows_(self, board_state: np.ndarray) -> tuple[int, np.ndarray]:
+        """
+        Clear full rows using numpy operations (backward compatibility).
+
+        Args:
+            board_state: NumPy array representing the board
+
+        Returns:
+            Tuple of (lines_cleared, new_board_state)
+        """
+        board_array = np.array(board_state)
+        mask = np.all(board_array != 0, axis=1)
+        cleared_board = board_array[~mask]
+        lines_cleared = np.sum(mask)
+
+        # Add empty rows at the top
+        if lines_cleared > 0:
+            empty_rows = np.zeros((lines_cleared, self.width), dtype=board_array.dtype)
+            cleared_board = np.concatenate([empty_rows, cleared_board])
+
+        return int(lines_cleared), cleared_board
+
+    def get_holes(self, board_state: list) -> int:
+        """Get number of holes (backward compatibility)."""
+        temp_board = Board(self.height, self.width)
+        temp_board.set_state(board_state)
+        return temp_board.get_holes()
+
+    def get_bumpiness_and_height(self, board_state: list) -> tuple[int, int]:
+        """Get bumpiness and height (backward compatibility)."""
+        temp_board = Board(self.height, self.width)
+        temp_board.set_state(board_state)
+        return temp_board.get_bumpiness_and_height()
+
+    def spawn_next_piece(self) -> None:
+        """Spawn next piece (backward compatibility)."""
+        success = self.game.spawn_piece()
+        if not success:
+            self.gameover = True
+        self._sync_state_for_wrappers()
+
+    def get_reward(self, lines_cleared: int) -> int:
+        """Calculate reward (backward compatibility)."""
+        return self.game.calculate_reward(lines_cleared, is_overflow=False)
+
+    def truncate_overflow_piece(self, piece: list, px: int, py: int) -> bool:
+        """
+        Check for overflow (backward compatibility).
+        Note: This is a simplified version for compatibility.
+        """
+        # Check if piece is at top and colliding
         for y in range(len(piece)):
             for x in range(len(piece[y])):
-                if py+y > self.height-1 or py+y < 0 or px+x > self.width-1 or px+x < 0:
-                    return True
                 if piece[y][x] == 0:
                     continue
-                if self.board[py+y][px+x] > 0:
+                board_y = py + y
+                if board_y < 0:
                     return True
+                if board_y < self.height and px + x < self.width:
+                    if self.board.is_cell_occupied(px + x, board_y):
+                        if py <= 1:
+                            return True
         return False
 
-    def get_board_with_piece(self, piece, px, py):
-        """현재 보드의 복사본을 만들어서, piece를 pos에 추가한 보드를 반환하는 메서드"""
-
-        board = [r[:] for r in self.board]
-        for y in range(len(piece)):
-            for x in range(len(piece[y])):
-                if piece[y][x] and not board[y + py][x + px]:
-                    board[y + py][x + px] = piece[y][x]
-        return board
-
-    def truncate_overflow_piece(self, piece, px, py):
-        # 현재 보드에 대해선 수정하는 작업 없이, 게임종료 여부 반환
-        # 이때 piece가 보드 밖으로 나가는 경우, in-place 연산으로 piece를 잘라서 보드 안에 들어오게 함
-
-        gameover = False
-        last_collision_row = -1
-        for y in range(len(piece)):
-            for x in range(len(piece[y])):
-                if piece[y][x] == 0:
-                    continue
-                if self.board[py + y][px + x]:
-                    if y > last_collision_row:
-                        last_collision_row = y
-                        break
-
-        if py - (len(piece) - last_collision_row) < 0 and last_collision_row > -1:
-            while last_collision_row >= 0 and len(piece) > 1:
-                gameover = True
-                last_collision_row = -1
-                del piece[0]
-                for y in range(len(piece)):
-                    for x in range(len(piece[y])):
-                        if self.board[py + y][px + x] and piece[y][x] and y > last_collision_row:
-                            last_collision_row = y
-        return gameover
-
-    def spawn_next_piece(self):
-        """다음 테트로미노를 뽑아서 현재 테트로미노로 설정하는 메서드"""
-
-        self.idx = self.queue.pop()
-        self.piece = [r[:] for r in self.PIECES[self.idx]]
-        self.x, self.y = self.width // 2 - len(self.piece[0]) // 2, 0
-        if self.check_collision(self.piece, self.x, self.y):
-            self.gameover = True
-
-    def get_rotated_piece(self, piece):
-        """현재 테트로미노를 시계방향으로 90도 회전한 결과를 반환하는 메서드"""
-
-        num_rows_orig = num_cols_new = len(piece)
-        num_rows_new = len(piece[0])
-        rotated_array = []
-
-        for i in range(num_rows_new):
-            new_row = [0] * num_cols_new
-            for j in range(num_cols_new):
-                new_row[j] = piece[(num_rows_orig - 1) - j][i]
-            rotated_array.append(new_row)
-        return rotated_array
-
-    def get_reward(self, lines_cleared):
-        """지워진 줄 수에 대한 보상을 반환하는 메서드"""
-        return 1 + (lines_cleared ** 2) * self.width
-
-##################################################
-
-    def clear_full_rows_(self, board: np.ndarray):
-        # np연산으로 전부 0이아닌 줄을 지우고 가장 위에 빈 줄을 추가하는 메서드
-
-        mask = np.all(board != 0, axis=1)
-        board = board[~mask]
-        board = np.concatenate(
-            [np.zeros((self.height - len(board), self.width)), board])
-        return np.sum(mask), board
-
-    def clear_full_rows(self, board):
-        """보드에서 꽉 찬 줄을 지우고, 지워진 줄 수와 보드를 반환하는 메서드"""
-        # in-place로 가득 찬 줄을 지우고, 지워진 줄 수와 보드를 반환
-
-        to_delete = []
-        for i, row in enumerate(board[::-1]):
-            if 0 not in row:
-                to_delete.append(len(board) - 1 - i)
-        if len(to_delete) > 0:
-            board = self._remove_rows(board, to_delete)
-        return len(to_delete), board
-
-    def get_holes(self, board):
-        """보드에서 구멍 수를 반환하는 메서드"""
-        # 위에서부터 블록있는 곳까지 내려가고, 이후부터 빈칸을 세는 방식으로 구멍 수를 반환
-
-        num_holes = 0
-        for col in zip(*board):
-            row = 0
-            while row < self.height and col[row] == 0:
-                row += 1
-            num_holes += len([x for x in col[row + 1:] if x == 0])
-        return num_holes
-
-    def get_bumpiness_and_height(self, board):
-        """보드에서 인접 열간 높이 차이와 각 열의 높이 합을 반환하는 메서드"""
-        # 인접 열간 높이 차이인 diffs의 합 total_bumpiness, 각 열의 높이 hight의 합 hights를 반환
-
-        board = np.array(board)
-        mask = board != 0
-        invert_heights = np.where(
-            mask.any(axis=0), np.argmax(mask, axis=0), self.height)
-        heights = self.height - invert_heights
-        total_height = np.sum(heights)
-        currs = heights[:-1]
-        nexts = heights[1:]
-        diffs = np.abs(currs - nexts)
-        total_bumpiness = np.sum(diffs)
-        return total_bumpiness, total_height
-
-    def _remove_rows(self, board, indices):
-        # 보드에서 indices에 해당하는 행을 in-place 삭제하고, 위에 빈 행을 추가하는 메서드
-        for i in indices[::-1]:
-            del board[i]
-            board = [[0 for _ in range(self.width)]] + board
-        return board
-
-##################################################
+    # ========================================
+    # Rendering
+    # ========================================
 
     def get_render_state(self) -> GameStates:
-        """랜더링을 위해 현재 게임 상태를 반환하는 메서드"""
+        """
+        Get current game state for rendering.
 
-        board = self.get_board_with_piece(self.piece, self.x, self.y)
-        next_idx = self.queue.peek()
-        next_piece = self.PIECES[next_idx]
+        Returns:
+            GameStates instance
+        """
+        board_with_piece = self.game.get_board_with_current_piece()
+        next_piece_type = self.game.get_next_piece_type()
+        next_piece_shape = Piece.get_shape(next_piece_type)
 
-        return GameStates(board, self.score, next_piece)
+        return GameStates(
+            board=board_with_piece,
+            score=self.game.score,
+            next_piece=next_piece_shape
+        )
 
     def render(self):
-        """게임을 렌더링하는 메서드"""
-        self.renderer.render(self.get_render_state())
+        """Render the game."""
+        if self.render_mode in ["human", "animate"]:
+            self.renderer.render(self.get_render_state())
