@@ -176,8 +176,13 @@ class Board:
         Args:
             indices: List of row indices to remove
         """
+        # Delete rows in reverse order to maintain correct indices
         for i in sorted(indices, reverse=True):
             del self._state[i]
+
+        # Add empty rows at the top
+        num_removed = len(indices)
+        for _ in range(num_removed):
             self._state.insert(0, [0] * self.width)
 
     def get_holes(self) -> int:

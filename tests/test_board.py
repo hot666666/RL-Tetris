@@ -136,12 +136,13 @@ class TestBoardCollision:
         """Test that empty cells in piece don't cause collision."""
         board = Board(height=10, width=10)
         state = [[0] * 10 for _ in range(10)]
-        state[5][5] = 1
+        state[5][4] = 1  # Occupied cell
         board.set_state(state)
 
-        # T-shaped piece with empty cell at (0,0)
-        piece = [[0, 1, 0], [1, 1, 1]]
-        assert not board.check_collision(piece, 4, 4)  # Empty cell overlaps
+        # Piece with empty cell in the middle: [1, 0, 1]
+        # When placed at (5, 3), the empty cell overlaps with occupied cell
+        piece = [[1, 0, 1]]
+        assert not board.check_collision(piece, 3, 5)  # Empty cell overlaps occupied, should be OK
 
 
 class TestBoardPiecePlacement:
@@ -241,8 +242,8 @@ class TestLineClear:
         assert lines_cleared == 2
 
         new_state = board.get_state()
-        # The incomplete line should remain
-        assert 3 in new_state[9]
+        # The incomplete line should remain at row 7 after clearing rows 5 and 7
+        assert 3 in new_state[7]
 
 
 class TestBoardFeatures:
@@ -257,15 +258,16 @@ class TestBoardFeatures:
         """Test holes detection."""
         board = Board(height=10, width=10)
         state = [[0] * 10 for _ in range(10)]
-        # Create a hole: block on top, empty below, block at bottom
+        # Create holes: block on top, empty spaces below
         state[5][3] = 1
         state[6][3] = 0  # Hole
         state[7][3] = 0  # Hole
         state[8][3] = 1
+        state[9][3] = 1  # Block at bottom to close the holes
         board.set_state(state)
 
         holes = board.get_holes()
-        assert holes == 2  # Two holes in column 3
+        assert holes == 2  # Two holes in column 3 (rows 6 and 7)
 
     def test_get_bumpiness_flat(self):
         """Test bumpiness on flat surface."""
