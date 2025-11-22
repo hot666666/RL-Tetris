@@ -446,75 +446,6 @@ RL-Tetris/
 └── test_refactored_env.py # 검증 스크립트
 ```
 
----
-
-## 주요 개선 사항
-
-### Before vs After 비교
-
-| 항목 | Before | After |
-|------|--------|-------|
-| **구조** | 단일 파일 (344줄) | 모듈화된 컴포넌트 |
-| **책임 분리** | 혼재됨 | 명확한 단일 책임 |
-| **테스트** | 1개 (placeholder) | 99개 (포괄적) |
-| **특징 추출** | 환경 내 혼재 | 독립 모듈 |
-| **재사용성** | 낮음 | 높음 |
-| **유지보수성** | 어려움 | 쉬움 |
-| **확장성** | 제한적 | 우수 |
-| **코드 중복** | 있음 | 최소화 |
-
-### 리팩토링 통계
-
-```
-12 files changed, 2631 insertions(+), 265 deletions(-)
-```
-
-#### 새로 추가된 파일
-- `rl_tetris/core/board.py` (299 lines)
-- `rl_tetris/core/piece.py` (237 lines)
-- `rl_tetris/core/game.py` (257 lines)
-- `rl_tetris/features/extractors.py` (191 lines)
-- `tests/test_board.py` (310 lines)
-- `tests/test_piece.py` (270 lines)
-- `tests/test_game.py` (150 lines)
-- `tests/test_randomizer.py` (119 lines)
-- `tests/test_integration.py` (220 lines)
-
-#### 수정된 파일
-- `rl_tetris/envs/tetris.py` (344 → 314 lines, -30 lines)
-
-### 아키텍처 원칙
-
-이 리팩토링은 다음 설계 원칙을 따릅니다:
-
-1. **Single Responsibility Principle (SRP)**
-   - 각 클래스는 하나의 명확한 책임만 가짐
-
-2. **Open/Closed Principle (OCP)**
-   - 확장에는 열려있고 수정에는 닫혀있음
-   - 새로운 특징 추출기나 피스 타입 추가 용이
-
-3. **Dependency Injection**
-   - Board, Queue 등을 Game에 주입
-   - 테스트 시 모킹 용이
-
-4. **Composition over Inheritance**
-   - Tetris가 Board, Game, Piece를 조합하여 사용
-
-5. **Separation of Concerns**
-   - 게임 로직, 렌더링, 특징 추출이 명확히 분리
-
-### 이점
-
-✅ **모듈화**: 각 컴포넌트를 독립적으로 테스트 및 개발 가능
-✅ **테스트 용이성**: Pure function과 DI로 100% 테스트 가능
-✅ **유지보수성**: 명확한 구조로 버그 수정과 기능 추가가 쉬움
-✅ **확장성**: 새로운 특징, 피스 타입, 게임 모드 추가 용이
-✅ **하위 호환성**: 기존 wrapper와 예제 코드 그대로 작동
-✅ **재사용성**: 각 컴포넌트를 다른 프로젝트에서도 사용 가능
-
----
-
 ## 사용 예제
 
 ### 기본 사용법
@@ -567,23 +498,3 @@ features = BoardFeatureExtractor.extract_features(board)
 names = BoardFeatureExtractor.get_feature_names()
 # Output: ['lines_cleared', 'holes', 'bumpiness', 'total_height']
 ```
-
----
-
-## 결론
-
-이 리팩토링을 통해 RL-Tetris 프로젝트는:
-
-1. **더 명확한 구조**를 갖게 되었습니다
-2. **테스트 가능한 코드**로 변경되었습니다
-3. **유지보수가 쉬운** 코드베이스가 되었습니다
-4. **확장 가능한 아키텍처**를 갖추었습니다
-5. **하위 호환성**을 유지했습니다
-
-이제 새로운 기능을 추가하거나 버그를 수정하기가 훨씬 쉬워졌으며, 각 컴포넌트를 독립적으로 테스트할 수 있습니다.
-
----
-
-**작성일**: 2025-11-21
-**버전**: 0.2.0
-**작성자**: Claude AI
