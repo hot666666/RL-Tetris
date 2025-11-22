@@ -1,0 +1,113 @@
+site_name: RL-Tetris Documentation
+site_description: Tetris Environment for Reinforcement Learning
+site_author: hot666666
+site_url: https://hot666666.github.io/RL-Tetris
+repo_name: hot666666/RL-Tetris
+repo_url: https://github.com/hot666666/RL-Tetris
+
+theme:
+  name: material
+  language: ko
+  palette:
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search:
+      lang: ko
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_signature_annotations: true
+            separate_signature: true
+            merge_init_into_class: true
+            docstring_section_style: table
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quick-start.md
+    - Examples: getting-started/examples.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Core Components: architecture/core-components.md
+    - Data Flow: architecture/data-flow.md
+  - API Reference:
+    - Core:
+      - Board: api/core/board.md
+      - Piece: api/core/piece.md
+      - Game: api/core/game.md
+    - Environment:
+      - Tetris: api/env/tetris.md
+    - Features:
+      - Extractors: api/features/extractors.md
+    - Wrappers:
+      - Grouped: api/wrappers/grouped.md
+      - Observation: api/wrappers/observation.md
+    - Utils:
+      - Randomizer: api/utils/randomizer.md
+      - Queue: api/utils/queue.md
+  - Contributing: contributing.md
+  - License: license.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/hot666666/RL-Tetris
