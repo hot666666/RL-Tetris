@@ -2,7 +2,7 @@
 
 # RL-Tetris
 
-![demo](demo.gif)
+<img src="demo.gif" width="300" alt="demo">
 
 **RL-Tetris**는 강화학습을 위해 Gymnasium 인터페이스를 기반으로 구현된 테트리스 게임 환경입니다.
 
@@ -166,49 +166,6 @@ graph LR
     style T3 fill:#FFF3E0
     style T4 fill:#FFF3E0
 ```
-
-### 디렉토리 구조
-
-```mermaid
-graph TB
-    Root[RL-Tetris/]
-
-    Root --> RL[rl_tetris/]
-    Root --> Tests[tests/]
-    Root --> Examples[examples/]
-
-    RL --> Core[core/]
-    RL --> Features[features/]
-    RL --> Envs[envs/]
-    RL --> Wrapper[wrapper/]
-    RL --> Mapping[mapping/]
-    RL --> Other[renderer.py<br/>randomizer.py<br/>tetromino_queue.py<br/>game_state.py]
-
-    Core --> CB[board.py<br/>piece.py<br/>game.py<br/>__init__.py]
-    Features --> FE[extractors.py<br/>__init__.py]
-    Envs --> ET[tetris.py<br/>__init__.py]
-    Wrapper --> WR[Grouped.py<br/>Observation.py]
-    Mapping --> MA[actions.py]
-
-    Tests --> TestFiles[test_board.py<br/>test_piece.py<br/>test_game.py<br/>test_randomizer.py<br/>test_integration.py<br/>test_wrappers.py<br/>test_envs.py]
-
-    Examples --> EX[random_env.py<br/>random_grouped_env.py<br/>train_grouped_model.py]
-
-    style Core fill:#2196F3
-    style Features fill:#FF9800
-    style Tests fill:#4CAF50
-```
-
-### 주요 개선 사항
-
-| 항목 | Before | After |
-|------|--------|-------|
-| **구조** | 단일 파일 (344줄) | 모듈화된 컴포넌트 |
-| **책임 분리** | 혼재됨 | 명확한 단일 책임 |
-| **테스트** | 1개 (placeholder) | 124개 (포괄적) |
-| **특징 추출** | 환경 내 혼재 | 독립 모듈 |
-| **재사용성** | 낮음 | 높음 |
-| **유지보수성** | 어려움 | 쉬움 |
 
 더 자세한 아키텍처 정보는 [ARCHITECTURE.md](ARCHITECTURE.md)를 참고하세요.
 
